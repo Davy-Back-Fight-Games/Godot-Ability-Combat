@@ -1,0 +1,18 @@
+; Engine configuration file.
+; Minimal validation project for the Ability Combat addon.
+
+config_version=5
+
+[application]
+
+config/name="Godot Ability Combat"
+run/main_scene="res://examples/validation.tscn"
+config/features=PackedStringArray("4.7")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/modular_data/plugin.cfg", "res://addons/godot_events/plugin.cfg", "res://addons/ability_combat/plugin.cfg")
+
+[event_channels]
+
+debug_log_events=false
