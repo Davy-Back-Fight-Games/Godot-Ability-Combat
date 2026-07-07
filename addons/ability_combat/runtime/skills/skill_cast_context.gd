@@ -10,6 +10,8 @@ var aim_direction: Vector2 = Vector2.RIGHT
 var has_aim_direction: bool = false
 var target_position: Vector2 = Vector2.ZERO
 var has_target_position: bool = false
+var target_node: Node
+var has_target_node: bool = false
 var targets: Array[Node] = []
 
 func _init(p_caster: Node = null, p_skill: Resource = null, p_slot_index: int = -1) -> void:
@@ -27,6 +29,23 @@ func set_aim_direction(value: Vector2) -> void:
 func set_target_position(value: Vector2) -> void:
 	target_position = value
 	has_target_position = true
+
+func set_target_node(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		clear_target_node()
+		return
+	target_node = node
+	has_target_node = true
+
+func clear_target_node() -> void:
+	target_node = null
+	has_target_node = false
+
+func get_target_node_or_null() -> Node:
+	if not has_target_node or target_node == null or not is_instance_valid(target_node):
+		clear_target_node()
+		return null
+	return target_node
 
 func get_aim_direction_or_default(default_value: Vector2 = Vector2.RIGHT) -> Vector2:
 	if has_aim_direction and not aim_direction.is_zero_approx():

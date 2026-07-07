@@ -1,6 +1,8 @@
 class_name SkillTargeting
 extends Resource
 
+const TargetableComponentScript := preload("res://addons/ability_combat/runtime/combat/targetable_component.gd")
+
 @export var debug_log: bool = false
 
 func resolve_targets(_caster: Node, _skill: Resource) -> Array[Node]:
@@ -28,6 +30,9 @@ func get_preview_shape_for_context(context: SkillCastContext) -> Resource:
 func _is_skill_targetable(target: Node) -> bool:
 	if target == null:
 		return false
+	var targetable = TargetableComponentScript.find_for_node(target)
+	if targetable != null:
+		return targetable.is_skill_targetable()
 	if target.has_method(&"is_skill_targetable"):
 		return target.call(&"is_skill_targetable")
 	return true

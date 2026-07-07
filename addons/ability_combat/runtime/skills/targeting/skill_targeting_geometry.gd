@@ -4,8 +4,11 @@ extends RefCounted
 static func get_node2d(node: Node) -> Node2D:
 	if node is Node2D:
 		return node
-	if node != null and node.get_parent() is Node2D:
-		return node.get_parent()
+	var current := node
+	while current != null:
+		if current is Node2D:
+			return current
+		current = current.get_parent()
 	return null
 
 static func try_get_position(node: Node) -> Dictionary:

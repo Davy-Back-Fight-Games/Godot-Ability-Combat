@@ -1,21 +1,31 @@
 class_name SkillDefinition
 extends Resource
 
-enum CastMode {
-	INSTANT,
-	PRESS_PREVIEW_RELEASE_CAST,
-	PRESS_PREVIEW_CONFIRM_CAST,
-}
+const TimeIntervalPattern = preload("res://addons/ability_combat/runtime/time/time_interval_pattern.gd")
+const TimeDurationPattern = preload("res://addons/ability_combat/runtime/time/time_duration_pattern.gd")
 
 @export var display_name: String = ""
 @export_multiline var description: String = ""
-@export var cast_mode: CastMode = CastMode.INSTANT
+@export var aim_mode: Resource
 @export var cost: SkillCost
 @export var cooldown_seconds: FloatReference
+@export var max_charges: int = 1
+@export var recharge_seconds: float = 0.0
+@export var recast_window_seconds: float = 0.0
+@export var cooldown_group: StringName = &""
+@export var cooldown_group_seconds: float = 0.0
+@export var cast_duration_pattern: TimeDurationPattern
+@export var cast_point_seconds: float = 0.0
+@export var channel_duration_pattern: TimeDurationPattern
+@export var channel_tick_interval_pattern: TimeIntervalPattern
+@export var cancel_channel_on_input_release: bool = false
+@export var interruptible_by_status: bool = true
+@export var interruptible_by_movement: bool = false
 @export var targeting: Resource
 @export var allowed_slot_types: Array[SkillSlotType] = []
 @export var requirements: Array[Resource] = []
 @export var effects: Array[SkillEffect] = []
+@export var timed_effects: Array[Resource] = []
 @export var debug_log: bool = false
 
 func can_activate() -> bool:
@@ -101,6 +111,57 @@ func get_cooldown_seconds() -> float:
 		return 0.0
 	return maxf(cooldown_seconds.get_value(), 0.0)
 
+func get_max_charges() -> int:
+	return maxi(max_charges, 1)
+
+func get_recharge_seconds() -> float:
+	return maxf(recharge_seconds, 0.0)
+
+func get_recast_window_seconds() -> float:
+	return maxf(recast_window_seconds, 0.0)
+
+func get_cooldown_group() -> StringName:
+	return cooldown_group
+
+func get_cooldown_group_seconds() -> float:
+	if cooldown_group == &"":
+		return 0.0
+	if cooldown_group_seconds > 0.0:
+		return cooldown_group_seconds
+	return get_cooldown_seconds()
+
+func get_cast_time_seconds() -> float:
+	if cast_duration_pattern != null:
+		return cast_duration_pattern.get_duration_seconds()
+	return 0.0
+
+func get_cast_point_seconds() -> float:
+	var cast_time := get_cast_time_seconds()
+	if cast_time <= 0.0:
+		return 0.0
+	if cast_point_seconds <= 0.0:
+		return cast_time
+	return clampf(cast_point_seconds, 0.0, cast_time)
+
+func get_channel_duration_seconds() -> float:
+	if channel_duration_pattern != null:
+		return channel_duration_pattern.get_duration_seconds()
+	return 0.0
+
+func get_channel_tick_interval_pattern() -> TimeIntervalPattern:
+	if get_channel_duration_seconds() <= 0.0:
+		return null
+	return channel_tick_interval_pattern
+
+func should_cancel_channel_on_input_release() -> bool:
+	return cancel_channel_on_input_release
+
+func is_interruptible_by_status() -> bool:
+	return interruptible_by_status
+
+func is_interruptible_by_movement() -> bool:
+	return interruptible_by_movement
+
 func can_assign_to_slot_type(slot_type: SkillSlotType) -> bool:
 	if slot_type == null or allowed_slot_types.is_empty():
 		return false
@@ -110,6 +171,9 @@ func can_assign_to_slot(slot_definition: SkillSlotDefinition) -> bool:
 	if slot_definition == null:
 		return false
 	return can_assign_to_slot_type(slot_definition.slot_type)
+
+func get_aim_mode() -> Resource:
+	return aim_mode
 
 func get_allowed_slot_type_labels() -> PackedStringArray:
 	var labels := PackedStringArray()
@@ -122,6 +186,57 @@ func get_validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
 	if allowed_slot_types.is_empty():
 		errors.append("%s has no allowed_slot_types" % get_label())
+	var resolved_aim_mode := get_aim_mode()
+	if resolved_aim_mode == null:
+		errors.append("%s has no aim mode" % get_label())
+	else:
+		var aim_mode_errors := _get_aim_mode_interface_errors(resolved_aim_mode)
+		if not aim_mode_errors.is_empty():
+			for aim_mode_error in aim_mode_errors:
+				errors.append("%s aim_mode %s" % [get_label(), aim_mode_error])
+		if resolved_aim_mode.has_method("get_validation_errors"):
+			for error in resolved_aim_mode.get_validation_errors(self):
+				errors.append(error)
+	if targeting != null and targeting.has_method("get_validation_errors"):
+		for error in targeting.get_validation_errors(self):
+			errors.append(error)
+	if cast_duration_pattern != null:
+		for error in cast_duration_pattern.get_validation_errors():
+			errors.append("%s cast_duration_pattern %s" % [get_label(), error])
+	if channel_duration_pattern != null:
+		for error in channel_duration_pattern.get_validation_errors():
+			errors.append("%s channel_duration_pattern %s" % [get_label(), error])
+	if channel_tick_interval_pattern != null:
+		for error in channel_tick_interval_pattern.get_validation_errors():
+			errors.append("%s channel_tick_interval_pattern %s" % [get_label(), error])
+	for timed_effect in timed_effects:
+		if timed_effect == null:
+			continue
+		if timed_effect.has_method("get_validation_errors"):
+			for error in timed_effect.get_validation_errors():
+				errors.append(error)
+	return errors
+
+func _is_aim_mode_valid(value: Resource) -> bool:
+	return _get_aim_mode_interface_errors(value).is_empty()
+
+func _get_aim_mode_interface_errors(value: Resource) -> PackedStringArray:
+	var errors := PackedStringArray()
+	if value == null:
+		errors.append("is null")
+		return errors
+	if not value.has_method("casts_on_press"):
+		errors.append("is missing casts_on_press")
+	if not value.has_method("uses_preview"):
+		errors.append("is missing uses_preview")
+	if not value.has_method("casts_on_release"):
+		errors.append("is missing casts_on_release")
+	if not value.has_method("casts_on_confirm"):
+		errors.append("is missing casts_on_confirm")
+	if not value.has_method("get_validation_errors"):
+		errors.append("is missing get_validation_errors")
+	if not value.has_method("get_debug_label"):
+		errors.append("is missing get_debug_label")
 	return errors
 
 func get_label() -> String:
